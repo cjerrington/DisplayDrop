@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DisplayDrop Dashboard</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <header>
+        <h1>DisplayDrop Control Panel</h1>
+        <div class="actions">
+            <a href="/play" target="_blank" class="btn secondary">Launch Player</a>
+            <button onclick="saveChanges()" class="btn primary">Save Configuration</button>
+        </div>
+    </header>
+
+    <div class="upload-zone" id="uploadZone">
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="upload-content">
+                <span class="upload-icon">&#x2B;</span>
+                <p>Drag & drop images here, or <label for="fileInput" class="upload-link">browse files</label></p>
+                <input type="file" id="fileInput" name="images" multiple accept=".jpg,.jpeg,.png,.gif,.webp" hidden>
+                <p class="upload-hint">Supported: JPG, JPEG, PNG, GIF, WEBP (max 50MB each)</p>
+            </div>
+        </form>
+    </div>
+
+    <main>
+        <div class="bulk-actions">
+            <div class="bulk-group">
+                <span>Apply to all:</span>
+                <input type="number" id="bulk-duration" placeholder="Secs" style="width: 80px;">
+                <select id="bulk-transition">
+                    <option value="fade">Fade</option>
+                    <option value="slide-in">Slide In</option>
+                </select>
+            </div>
+            <button onclick="applyToAll()" class="btn secondary">Apply All</button>
+        </div>
+
+        <table id="slideTable">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th> <th style="width: 60px;">Live</th>
+                    <th style="width: 120px;">Thumbnail</th>
+                    <th>Filename</th>
+                    <th style="width: 100px;">Duration</th>
+                    <th style="width: 140px;">Transition</th>
+                    <th style="width: 80px;"></th>
+                </tr>
+            </thead>
+            <tbody id="sortableBody">
+                <% slides.forEach((slide) => { %>
+                <tr data-id="<%= slide.id %>" class="<%= slide.active ? '' : 'disabled-row' %>">
+                    <td class="drag-handle">⠿</td>
+                    <td>
+                        <input type="checkbox" class="input-active" <%= slide.active ? 'checked' : '' %>>
+                    </td>
+                    <td>
+                        <img src="/slides/<%= slide.filename %>" class="thumb" onclick="previewImage('/slides/<%= slide.filename %>')">
+                    </td>
+                    <td class="filename-cell" title="<%= slide.filename %>"><%= slide.filename %></td>
+                    <td>
+                        <input type="number" class="input-duration" value="<%= slide.duration %>">
+                    </td>
+                    <td>
+                        <select class="input-transition">
+                            <option value="fade" <%= slide.transition === 'fade' ? 'selected' : '' %>>Fade</option>
+                            <option value="slide-in" <%= slide.transition === 'slide-in' ? 'selected' : '' %>>Slide In</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="btn-delete" onclick="deleteSlide(<%= slide.id %>)" title="Delete slide">&#x1F5D1;</button>
+                    </td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </main>
+
+    <div id="toast" class="toast">Configuration Saved Successfully!</div>
+    <div id="uploadToast" class="toast upload-toast"></div>
+
+    <script type="module">
+        import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/modular/sortable.complete.esm.js';
+
+        const el = document.getElementById('sortableBody');
+
+        // 1. Initialize Sortable
+        const sortable = Sortable.create(el, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost'
+        });
+
+        // 2. Dynamic Toggle for Row Opacity (UI Only)
+        el.addEventListener('change', (e) => {
+            if (e.target.classList.contains('input-active')) {
+                const row = e.target.closest('tr');
+                row.classList.toggle('disabled-row', !e.target.checked);
+            }
+        });
+
+        // 3. Save Logic
+        async function saveChanges() {
+            const rows = document.querySelectorAll('#sortableBody tr');
+            const updates = Array.from(rows).map((row, index) => ({
+                id: parseInt(row.dataset.id),
+                display_order: index + 1,
+                duration: parseInt(row.querySelector('.input-duration').value) || 5,
+                transition: row.querySelector('.input-transition').value,
+                active: row.querySelector('.input-active').checked ? 1 : 0
+            }));
+
+            try {
+                const response = await fetch('/api/update-slides', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ updates })
+                });
+
+                if (response.ok) {
+                    showToast(); // Call our new toast function instead of alert()
+                }
+            } catch (err) {
+                console.error('Save failed:', err);
+            }
+        }
+
+        // Function to show the toast
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.add('show');
+
+            // Hide it after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+
+        // 4. Global Helpers
+        window.saveChanges = saveChanges;
+
+        window.applyToAll = () => {
+            const dur = document.getElementById('bulk-duration').value;
+            const trans = document.getElementById('bulk-transition').value;
+            if (dur) document.querySelectorAll('.input-duration').forEach(i => i.value = dur);
+            if (trans) document.querySelectorAll('.input-transition').forEach(i => i.value = trans);
+        };
+
+        window.previewImage = (url) => {
+            window.open(url, '_blank', 'width=800,height=600');
+        };
+
+        // 5. Upload Logic
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadForm = document.getElementById('uploadForm');
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            uploadFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', () => {
+            uploadFiles(fileInput.files);
+        });
+
+        async function uploadFiles(files) {
+            if (!files || files.length === 0) return;
+
+            const formData = new FormData();
+            Array.from(files).forEach(f => formData.append('images', f));
+
+            showUploadToast('Uploading...', '');
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showUploadToast(`${result.uploaded.length} image(s) uploaded!`, 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showUploadToast(`Error: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                showUploadToast('Upload failed. Please try again.', 'error');
+            }
+        }
+
+        function showUploadToast(message, type) {
+            const toast = document.getElementById('uploadToast');
+            toast.textContent = message;
+            toast.className = 'toast upload-toast show' + (type ? ` toast-${type}` : '');
+            if (type !== '') {
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+        }
+
+        window.deleteSlide = async (id) => {
+            if (!confirm('Are you sure you want to permanently delete this slide?')) return;
+            try {
+                const response = await fetch(`/api/slides/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    showUploadToast(`Error: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                showUploadToast('Delete failed.', 'error');
+            }
+        };
+    </script>
+</body>
+</html>

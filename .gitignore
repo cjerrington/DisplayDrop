@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Database (SQLite)
+*.db
+*.db-journal
+*.db-wal
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Optional: Uncomment to exclude uploaded slides from tracking
+# public/slides/

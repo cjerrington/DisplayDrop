@@ -1,0 +1,245 @@
+:root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg: #f8fafc;
+    --text: #1e293b;
+    --border: #e2e8f0;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 2rem;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+/* Upload Zone */
+.upload-zone {
+    background: white;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.upload-zone.drag-over {
+    border-color: var(--primary);
+    background: #eff6ff;
+}
+
+.upload-content .upload-icon {
+    font-size: 2rem;
+    color: #94a3b8;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.upload-content p {
+    margin: 0.25rem 0;
+    color: #64748b;
+}
+
+.upload-link {
+    color: var(--primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.upload-hint {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+/* Bulk Action Bar */
+.bulk-actions {
+    background: white;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+}
+
+.bulk-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.6rem 1.2rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 600;
+    border: none;
+    transition: background 0.2s;
+}
+
+.primary { background: var(--primary); color: white; }
+.primary:hover { background: var(--primary-hover); }
+.secondary { background: #e2e8f0; color: var(--text); }
+.secondary:hover { background: #cbd5e1; }
+
+/* Table Styling */
+table {
+    width: 100%;
+    background: white;
+    border-collapse: collapse;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    table-layout: fixed;
+}
+
+th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+th {
+    background: #f1f5f9;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    color: #64748b;
+}
+
+/* Row States */
+#sortableBody tr {
+transition: opacity 0.2s, background-color 0.2s;
+}
+
+#sortableBody tr.disabled-row {
+opacity: 0.45;
+background-color: #f1f5f9;
+color: #94a3b8;
+}
+
+#sortableBody tr.disabled-row .thumb {
+filter: grayscale(100%);
+}
+
+#sortableBody tr:hover {
+background-color: #fdfdfd;
+}
+
+/* Specific Cells */
+.drag-handle {
+    color: #cbd5e1;
+    font-size: 1.25rem;
+    cursor: grab;
+    text-align: center;
+}
+
+.thumb {
+    width: 100px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #eee;
+    cursor: zoom-in;
+    display: block;
+}
+
+.filename-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+/* Inputs */
+input[type="number"], select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Sortable Ghost */
+.sortable-ghost {
+    opacity: 0.2;
+    background: var(--primary) !important;
+}
+
+/* Toast Notification */
+.toast {
+    visibility: hidden;
+    min-width: 250px;
+    background-color: #10b981; /* Nice emerald green */
+    color: #fff;
+    text-align: center;
+    border-radius: 8px;
+    padding: 16px;
+    position: fixed;
+    z-index: 1000;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%);
+    font-weight: 600;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transition: opacity 0.5s, bottom 0.5s, visibility 0.5s;
+}
+
+.toast.show {
+    visibility: visible;
+    opacity: 1;
+    bottom: 50px; /* Slides up slightly when appearing */
+}
+
+.toast-error {
+    background-color: #ef4444;
+}
+
+.toast-success {
+    background-color: #10b981;
+}
+
+/* Delete Button */
+.btn-delete {
+    background: transparent;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-delete:hover {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #ef4444;
+}

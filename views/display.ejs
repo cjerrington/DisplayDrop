@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DisplayDrop - Live Player</title>
+    <link rel="stylesheet" href="/css/display.css">
+</head>
+<body>
+    <div id="stage"></div>
+
+    <script>
+        let slides = [];
+        let currentIndex = 0;
+        const stage = document.getElementById('stage');
+
+        // Toggle Fullscreen Function
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // 1. Double Click Listener
+        document.addEventListener('dblclick', () => {
+            toggleFullScreen();
+        });
+
+        // 2. Escape Key Listener
+        // Note: Browsers automatically exit F11/Fullscreen on Escape,
+        // but this ensures our app state handles it gracefully.
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+
+            // Bonus: Press 'F' to toggle as well (common in video players)
+            if (e.key.toLowerCase() === 'f') {
+                toggleFullScreen();
+            }
+        });
+
+        async function init() {
+            const res = await fetch('/api/slides');
+            slides = await res.json();
+
+            if (slides.length === 0) {
+                stage.innerHTML = '<div style="color: white; padding: 20px;">No active slides found. Add images to the folder and enable them in the dashboard.</div>';
+                return;
+            }
+
+            renderSlides();
+            playNext();
+        }
+
+        function renderSlides() {
+            stage.innerHTML = '';
+            slides.forEach((slide, index) => {
+                const div = document.createElement('div');
+                // We add the specific transition class (fade or slide-in)
+                div.className = `slide ${slide.transition}`;
+                div.style.backgroundImage = `url('/slides/${slide.filename}')`;
+                div.id = `slide-${index}`;
+                stage.appendChild(div);
+            });
+        }
+
+        function playNext() {
+            const slideElements = document.querySelectorAll('.slide');
+
+            // 1. Find the current slide and prepare to phase it out
+            const oldSlide = document.querySelector('.slide.active');
+            if (oldSlide) {
+                oldSlide.classList.remove('active');
+                oldSlide.classList.add('previous');
+
+                // CLEANUP: After the transition (1.5s), remove the 'previous' class
+                // This ensures the old image is gone before the NEXT transition happens.
+                setTimeout(() => {
+                    oldSlide.classList.remove('previous');
+                }, 1600); // Slightly longer than the 1.5s CSS transition
+            }
+
+            // 2. Activate the new slide
+            const nextEl = document.getElementById(`slide-${currentIndex}`);
+            if (nextEl) {
+                nextEl.classList.add('active');
+            }
+
+            // 3. Set timing for the next loop
+            const currentSlideData = slides[currentIndex];
+            const ms = (currentSlideData.duration || 5) * 1000;
+
+            setTimeout(() => {
+                currentIndex = (currentIndex + 1) % slides.length;
+                playNext();
+            }, ms);
+        }
+
+        // Check for updates every 5 seconds (Reloads if slide count changes)
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/slides');
+                const newSlides = await res.json();
+
+                const hasChanged = JSON.stringify(newSlides) !== JSON.stringify(slides);
+
+                if (hasChanged) {
+                    console.log("DisplayDrop: Update detected. Syncing new configuration...");
+                    slides = newSlides; // Update the internal list
+                    renderSlides();     // Re-draw the images in the background
+
+                    // Note: We don't location.reload() here so the current
+                    // slide keeps playing until the next transition.
+                }
+            } catch (e) {
+                console.error("Connection lost to DisplayDrop server.");
+            }
+        }, 5000); // Check every 5 seconds instead of 60
+
+        init();
+    </script>
+</body>
+</html>

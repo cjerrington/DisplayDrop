@@ -25,4 +25,4 @@ npm-debug.log*
 .idea/
 
 # Optional: Uncomment to exclude uploaded slides from tracking
-# public/slides/
+public/slides/

@@ -33,7 +33,10 @@
                 <input type="number" id="bulk-duration" placeholder="Secs" style="width: 80px;">
                 <select id="bulk-transition">
                     <option value="fade">Fade</option>
-                    <option value="slide-in">Slide In</option>
+                    <option value="slide-left">Slide Left</option>
+                    <option value="slide-right">Slide Right</option>
+                    <option value="push">Push</option>
+                    <option value="cut">Cut</option>
                 </select>
             </div>
             <button onclick="applyToAll()" class="btn secondary">Apply All</button>
@@ -67,7 +70,10 @@
                     <td>
                         <select class="input-transition">
                             <option value="fade" <%= slide.transition === 'fade' ? 'selected' : '' %>>Fade</option>
-                            <option value="slide-in" <%= slide.transition === 'slide-in' ? 'selected' : '' %>>Slide In</option>
+                            <option value="slide-left" <%= slide.transition === 'slide-left' ? 'selected' : '' %>>Slide Left</option>
+                            <option value="slide-right" <%= slide.transition === 'slide-right' ? 'selected' : '' %>>Slide Right</option>
+                            <option value="push" <%= slide.transition === 'push' ? 'selected' : '' %>>Push</option>
+                            <option value="cut" <%= slide.transition === 'cut' ? 'selected' : '' %>>Cut</option>
                         </select>
                     </td>
                     <td>

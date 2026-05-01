@@ -8,7 +8,11 @@ import chokidar from 'chokidar';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const db = new DatabaseSync('displaydrop.db'); // Renamed DB file
+const db = new DatabaseSync('displaydrop.db');
+
+// Configuration Section
+const LIVE_MONITORING = process.env.LIVE_MONITORING || true;
+const PORT = process.env.PORT || 3000;
 
 // 1. Initialize DisplayDrop Database
 db.exec(`
@@ -58,7 +62,9 @@ function syncFiles() {
 }
 
 // 3. Optional Watcher (Toggle via Variable)
-const LIVE_MONITORING = true;
+// If true, the app will monitor the slides directory for changes and update the database in real-time. 
+// If false, it will only sync on startup and rely on manual refreshes or uploads through the dashboard. 
+// This allows users to choose between a more dynamic experience or a more controlled one without constant monitoring.
 if (LIVE_MONITORING) {
     chokidar.watch(SLIDES_DIR, { ignoreInitial: true }).on('add', (filePath) => {
         const filename = path.basename(filePath);
@@ -133,8 +139,6 @@ app.delete('/api/slides/:id', (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
-
-const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
     syncFiles();

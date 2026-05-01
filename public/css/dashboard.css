@@ -125,21 +125,21 @@ th {
 
 /* Row States */
 #sortableBody tr {
-transition: opacity 0.2s, background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
 }
 
 #sortableBody tr.disabled-row {
-opacity: 0.45;
-background-color: #f1f5f9;
-color: #94a3b8;
+    opacity: 0.45;
+    background-color: #f1f5f9;
+    color: #94a3b8;
 }
 
 #sortableBody tr.disabled-row .thumb {
-filter: grayscale(100%);
+    filter: grayscale(100%);
 }
 
 #sortableBody tr:hover {
-background-color: #fdfdfd;
+    background-color: #fdfdfd;
 }
 
 /* Specific Cells */

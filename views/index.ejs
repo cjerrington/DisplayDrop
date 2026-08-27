@@ -10,8 +10,21 @@
     <header>
         <h1>DisplayDrop Control Panel</h1>
         <div class="actions">
-            <a href="/play" target="_blank" class="btn secondary">Launch Player</a>
+            <span class="user-badge">Welcome, <%= user.username %> (<%= user.role %>)</span>
+            <div class="launch-dropdown">
+                <button type="button" class="btn secondary" id="launchBtn" aria-haspopup="true" aria-expanded="false">Launch Player &#9662;</button>
+                <div class="launch-menu" id="launchMenu" hidden>
+                    <a href="/play" target="_blank">All slides</a>
+                    <% tags.forEach(t => { %>
+                    <a href="/play?tags=<%= encodeURIComponent(t.name) %>" target="_blank"><%= t.name %></a>
+                    <% }) %>
+                </div>
+            </div>
+            <a href="/settings" class="btn secondary">Settings</a>
             <button onclick="saveChanges()" class="btn primary">Save Configuration</button>
+            <form action="/logout" method="POST" class="inline-form">
+                <button type="submit" class="btn secondary">Logout</button>
+            </form>
         </div>
     </header>
 
@@ -27,6 +40,25 @@
     </div>
 
     <main>
+        <% const WEEKDAY_SHORT = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; %>
+        <%
+        function schedSummary(s) {
+            let base;
+            if (s.schedule_type === 'once') base = `Once ${String(s.schedule_start).replace('T', ' ')}–${String(s.schedule_end).replace('T', ' ')}`;
+            else {
+                const days = (s.schedule_days || '').split(',').map(Number).filter(Boolean);
+                base = s.schedule_repeat === 'weekly'
+                    ? `Weekly ${days.map(d => WEEKDAY_SHORT[d]).join(',')} ${s.schedule_start}–${s.schedule_end}`
+                    : `Daily ${s.schedule_start}–${s.schedule_end}`;
+            }
+            return base + (s.schedule_exclusive ? ' · solo' : '');
+        }
+        function schedLabel(schedules) {
+            if (!schedules || schedules.length === 0) return 'None';
+            if (schedules.length === 1) return schedSummary(schedules[0]);
+            return `${schedules.length} windows`;
+        }
+        %>
         <div class="bulk-actions">
             <div class="bulk-group">
                 <span>Apply to all:</span>
@@ -50,12 +82,23 @@
                     <th>Filename</th>
                     <th style="width: 100px;">Duration</th>
                     <th style="width: 140px;">Transition</th>
+                    <th style="width: 130px;">Schedule</th>
+                    <th style="width: 130px;">Tags</th>
                     <th style="width: 80px;"></th>
                 </tr>
             </thead>
             <tbody id="sortableBody">
+                <% const WEEKDAY_SHORT_ROW = WEEKDAY_SHORT; %>
                 <% slides.forEach((slide) => { %>
-                <tr data-id="<%= slide.id %>" class="<%= slide.active ? '' : 'disabled-row' %>">
+                <% const scheds = (slide.schedules || []).map(s => ({
+                    type: s.schedule_type,
+                    repeat: s.schedule_repeat || 'daily',
+                    days: (s.schedule_days || '').split(',').map(Number).filter(Boolean),
+                    start: s.schedule_start,
+                    end: s.schedule_end,
+                    exclusive: !!s.schedule_exclusive
+                })); %>
+                <tr data-id="<%= slide.id %>" data-schedules="<%= JSON.stringify(scheds) %>" data-tags='<%= JSON.stringify(slide.tag_ids || []) %>' class="<%= slide.active ? '' : 'disabled-row' %>">
                     <td class="drag-handle">⠿</td>
                     <td>
                         <input type="checkbox" class="input-active" <%= slide.active ? 'checked' : '' %>>
@@ -77,6 +120,18 @@
                         </select>
                     </td>
                     <td>
+                        <button type="button" class="btn secondary btn-small btn-schedule <%= (slide.schedules || []).length ? 'scheduled' : '' %>"
+                                onclick="openSchedule(<%= slide.id %>)" title="Set a schedule for this slide">
+                            <%= schedLabel(slide.schedules || []) %>
+                        </button>
+                    </td>
+                    <td>
+                        <button type="button" class="btn secondary btn-small btn-tags <%= (slide.tags || []).length ? 'tagged' : '' %>"
+                                onclick="openTags(<%= slide.id %>)" title="Tag this slide for display areas">
+                            <%= (slide.tags || []).length ? slide.tags.join(', ') : 'None' %>
+                        </button>
+                    </td>
+                    <td>
                         <button class="btn-delete" onclick="deleteSlide(<%= slide.id %>)" title="Delete slide">&#x1F5D1;</button>
                     </td>
                 </tr>
@@ -84,6 +139,115 @@
             </tbody>
         </table>
     </main>
+
+    <section class="card player-links">
+        <div class="player-links-head">
+            <h2>Player Links</h2>
+            <p class="upload-hint">Each area plays its tag group plus every untagged (general) slide. Give each display one of these links. Tags are managed under <a href="/settings/tags">Settings → Tags</a>.</p>
+        </div>
+        <div class="player-links-list" id="playerLinksList"></div>
+    </section>
+
+    <div id="scheduleModal" class="modal-overlay" hidden>
+        <div class="modal modal-wide">
+            <h3>Schedule Slide</h3>
+            <p class="upload-hint" style="margin-top: 0;">Scheduled slides take over the display while a window is active and stay up for the whole window. Add as many windows as you need (e.g. one per passing period). Click a block on the grid to remove it.</p>
+
+            <div class="sched-grid-wrap">
+                <div class="sched-grid-head">
+                    <span class="sched-day-label"></span>
+                    <span class="sched-hour" style="left:0%">12am</span>
+                    <span class="sched-hour" style="left:25%">6am</span>
+                    <span class="sched-hour" style="left:50%">12pm</span>
+                    <span class="sched-hour" style="left:75%">6pm</span>
+                    <span class="sched-hour" style="left:100%">12am</span>
+                </div>
+                <div id="schedGrid" class="sched-grid"></div>
+            </div>
+
+            <div id="schedList" class="sched-list"></div>
+
+            <button type="button" class="btn secondary btn-small" id="schedAdd">+ Add window</button>
+
+            <div id="schedFormWrap" class="sched-form-wrap" hidden>
+                <h4 id="schedFormTitle">Add window</h4>
+                <label>
+                    Type
+                    <select id="f_type">
+                        <option value="recurring">Recurring</option>
+                        <option value="once">One-time event</option>
+                    </select>
+                </label>
+                <div id="f_recurFields">
+                    <label>
+                        Repeats
+                        <select id="f_repeat">
+                            <option value="daily">Daily — every day</option>
+                            <option value="weekly">Weekly — on selected days</option>
+                        </select>
+                    </label>
+                    <div id="f_weeklyFields" hidden>
+                        <span class="field-label">Days of week</span>
+                        <div class="day-row">
+                            <% ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((name, i) => { %>
+                            <label class="day-chip"><input type="checkbox" name="day_<%= i + 1 %>"><span><%= name %></span></label>
+                            <% }) %>
+                        </div>
+                    </div>
+                    <div class="schedule-row">
+                        <label>
+                            Start time
+                            <input type="time" id="f_start">
+                        </label>
+                        <label>
+                            End time
+                            <input type="time" id="f_end">
+                        </label>
+                    </div>
+                    <p class="upload-hint">End before start for an overnight window.</p>
+                </div>
+                <div id="f_onceFields" hidden>
+                    <label>
+                        Start
+                        <input type="datetime-local" id="f_onceStart">
+                    </label>
+                    <label>
+                        End
+                        <input type="datetime-local" id="f_onceEnd">
+                    </label>
+                </div>
+                <label class="sched-solo">
+                    <input type="checkbox" id="f_exclusive">
+                    <span>Only show this slide during this window (don't mix it in with other slides)</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn secondary" id="f_cancel">Cancel</button>
+                    <button type="button" class="btn primary" id="f_save">Add Window</button>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn secondary" onclick="closeScheduleModal()">Cancel</button>
+                <button type="button" class="btn primary" id="schedDone">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tagModal" class="modal-overlay" hidden>
+        <div class="modal">
+            <h3>Tags</h3>
+            <p class="upload-hint" style="margin-top: 0;">Untagged slides are "general" and play on every area. Tagged slides play on areas that include their tag (e.g. <code>/play?tags=name</code>).</p>
+            <div id="tagCheckList" class="tag-check-list"></div>
+            <div class="tag-new-row">
+                <input type="text" id="tagNewName" placeholder="New tag name" maxlength="50">
+                <button type="button" class="btn secondary btn-small" id="tagNewAdd">+ Create</button>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn secondary" onclick="closeTagModal()">Cancel</button>
+                <button type="button" class="btn primary" id="tagDone">Done</button>
+            </div>
+        </div>
+    </div>
 
     <div id="toast" class="toast">Configuration Saved Successfully!</div>
     <div id="uploadToast" class="toast upload-toast"></div>
@@ -109,6 +273,64 @@
         });
 
         // 3. Save Logic
+        function scheduleIntervals(sched) {
+            if (!sched || sched.type === 'none') return [];
+            const intervals = [];
+            const addWindow = (dayMs, start, end) => {
+                const [sh, sm] = start.split(':').map(Number);
+                const [eh, em] = end.split(':').map(Number);
+                const sMs = dayMs + sh * 3600000 + sm * 60000;
+                const eMs = dayMs + eh * 3600000 + em * 60000;
+                if (eMs <= sMs) {
+                    intervals.push([sMs, dayMs + 86400000]);
+                    intervals.push([dayMs + 86400000, dayMs + 86400000 + eh * 3600000 + em * 60000]);
+                } else {
+                    intervals.push([sMs, eMs]);
+                }
+            };
+            if (sched.type === 'recurring') {
+                const base = new Date();
+                base.setHours(0, 0, 0, 0);
+                const horizon = 14;
+                for (let d = 0; d < horizon; d++) {
+                    const day = new Date(base);
+                    day.setDate(base.getDate() + d);
+                    if (sched.repeat === 'weekly') {
+                        const iso = day.getDay() === 0 ? 7 : day.getDay();
+                        if (!(sched.days || []).includes(iso)) continue;
+                    }
+                    addWindow(day.getTime(), sched.start, sched.end);
+                }
+            } else if (sched.type === 'once') {
+                const sMs = new Date(sched.start).getTime();
+                const eMs = new Date(sched.end).getTime();
+                if (!isNaN(sMs) && !isNaN(eMs)) intervals.push([sMs, eMs]);
+            }
+            return intervals;
+        }
+
+        function findScheduleConflicts(updates) {
+            const conflicts = [];
+            const entries = [];
+            for (const u of updates) {
+                for (const sched of (u.schedules || [])) {
+                    entries.push({ filename: u.filename, sched });
+                }
+            }
+            for (let i = 0; i < entries.length; i++) {
+                for (let j = i + 1; j < entries.length; j++) {
+                    const a = entries[i];
+                    const b = entries[j];
+                    const A = scheduleIntervals(a.sched);
+                    const B = scheduleIntervals(b.sched);
+                    if (A.some(x => B.some(y => x[0] < y[1] && y[0] < x[1]))) {
+                        conflicts.push([a, b]);
+                    }
+                }
+            }
+            return conflicts;
+        }
+
         async function saveChanges() {
             const rows = document.querySelectorAll('#sortableBody tr');
             const updates = Array.from(rows).map((row, index) => ({
@@ -116,8 +338,20 @@
                 display_order: index + 1,
                 duration: parseInt(row.querySelector('.input-duration').value) || 5,
                 transition: row.querySelector('.input-transition').value,
-                active: row.querySelector('.input-active').checked ? 1 : 0
+                active: row.querySelector('.input-active').checked ? 1 : 0,
+                filename: row.querySelector('.filename-cell').textContent.trim(),
+                schedules: JSON.parse(row.dataset.schedules || '[]'),
+                tags: JSON.parse(row.dataset.tags || '[]')
             }));
+
+            const conflicts = findScheduleConflicts(updates);
+            if (conflicts.length > 0) {
+                const lines = conflicts.map(([a, b]) => `- "${a.filename}": ${entrySummary(a.sched)} overlaps ${entrySummary(b.sched)}`);
+                const ok = confirm(
+                    `Schedule overlap detected:\n${lines.join('\n')}\n\nOverlapping slides will play together during the overlap. Save anyway?`
+                );
+                if (!ok) return;
+            }
 
             try {
                 const response = await fetch('/api/update-slides', {
@@ -159,6 +393,359 @@
         window.previewImage = (url) => {
             window.open(url, '_blank', 'width=800,height=600');
         };
+
+        // 4b. Scheduling Modal — multiple windows per slide with weekly grid
+        const scheduleModal = document.getElementById('scheduleModal');
+        const schedGrid = document.getElementById('schedGrid');
+        const schedList = document.getElementById('schedList');
+        const schedFormWrap = document.getElementById('schedFormWrap');
+        const WEEKDAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        let editingId = null;
+        let editingSchedules = [];
+        let editingEntryIndex = null;
+
+        function entrySummary(e) {
+            if (e.type === 'once') return `Once ${e.start.replace('T', ' ')}–${e.end.replace('T', ' ')}`;
+            if (e.repeat === 'weekly') return `Weekly ${e.days.map(d => WEEKDAY_NAMES[d]).join(',')} ${e.start}–${e.end}`;
+            return `Daily ${e.start}–${e.end}`;
+        }
+
+        function renderSchedGrid() {
+            schedGrid.innerHTML = '';
+            for (let d = 1; d <= 7; d++) {
+                const row = document.createElement('div');
+                row.className = 'sched-row';
+                const day = document.createElement('span');
+                day.className = 'sched-day';
+                day.textContent = WEEKDAY_NAMES[d];
+                const track = document.createElement('div');
+                track.className = 'sched-track';
+                editingSchedules.forEach((e, idx) => {
+                    if (e.type !== 'recurring') return;
+                    const days = e.repeat === 'weekly' ? e.days : [1, 2, 3, 4, 5, 6, 7];
+                    if (!days.includes(d)) return;
+                    const [sh, sm] = e.start.split(':').map(Number);
+                    const [eh, em] = e.end.split(':').map(Number);
+                    const sMin = sh * 60 + sm;
+                    let eMin = eh * 60 + em;
+                    if (eMin <= sMin) eMin += 1440;
+                    const block = document.createElement('div');
+                    block.className = 'sched-block' + (e.repeat === 'weekly' ? ' weekly' : '');
+                    block.style.left = (sMin / 1440 * 100) + '%';
+                    block.style.width = Math.max(0.4, (eMin - sMin) / 1440 * 100) + '%';
+                    block.title = `Day ${WEEKDAY_NAMES[d]}: ${entrySummary(e)} (click to remove)`;
+                    block.addEventListener('click', () => removeEntry(idx));
+                    track.appendChild(block);
+                });
+                row.append(day, track);
+                schedGrid.appendChild(row);
+            }
+        }
+
+        function renderSchedList() {
+            schedList.innerHTML = '';
+            if (editingSchedules.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'sched-empty';
+                empty.textContent = 'No windows yet — click "+ Add window".';
+                schedList.appendChild(empty);
+                return;
+            }
+            editingSchedules.forEach((e, idx) => {
+                const item = document.createElement('div');
+                item.className = 'sched-item';
+                const summary = document.createElement('span');
+                summary.className = 'sched-item-summary';
+                summary.textContent = entrySummary(e) + (e.exclusive ? ' · solo' : '');
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn secondary btn-small';
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => openEntryForm(idx));
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-delete';
+                delBtn.title = 'Remove window';
+                delBtn.textContent = '\u{1F5D1}';
+                delBtn.addEventListener('click', () => removeEntry(idx));
+                item.append(summary, editBtn, delBtn);
+                schedList.appendChild(item);
+            });
+        }
+
+        function removeEntry(idx) {
+            editingSchedules.splice(idx, 1);
+            renderSchedGrid();
+            renderSchedList();
+        }
+
+        function updateEntryFields() {
+            const type = document.getElementById('f_type').value;
+            document.getElementById('f_recurFields').hidden = type !== 'recurring';
+            document.getElementById('f_onceFields').hidden = type !== 'once';
+            if (type === 'recurring') {
+                document.getElementById('f_weeklyFields').hidden = document.getElementById('f_repeat').value !== 'weekly';
+            }
+        }
+
+        function openEntryForm(index) {
+            editingEntryIndex = index !== undefined && index !== null ? index : null;
+            const e = editingEntryIndex !== null ? editingSchedules[editingEntryIndex] : null;
+            document.getElementById('schedFormTitle').textContent = e ? 'Edit window' : 'Add window';
+            document.getElementById('f_type').value = e ? e.type : 'recurring';
+            document.getElementById('f_repeat').value = e ? e.repeat : 'daily';
+            document.getElementById('f_start').value = (e && e.type === 'recurring') ? e.start : '';
+            document.getElementById('f_end').value = (e && e.type === 'recurring') ? e.end : '';
+            document.getElementById('f_onceStart').value = (e && e.type === 'once') ? e.start : '';
+            document.getElementById('f_onceEnd').value = (e && e.type === 'once') ? e.end : '';
+            document.querySelectorAll('#f_weeklyFields input[name^="day_"]').forEach(cb => {
+                cb.checked = e ? (e.days || []).includes(parseInt(cb.name.replace('day_', ''))) : false;
+            });
+            document.getElementById('f_exclusive').checked = e ? !!e.exclusive : false;
+            updateEntryFields();
+            schedFormWrap.hidden = false;
+        }
+
+        function saveEntryForm() {
+            const type = document.getElementById('f_type').value;
+            let entry;
+            if (type === 'recurring') {
+                const start = document.getElementById('f_start').value;
+                const end = document.getElementById('f_end').value;
+                if (!start || !end) { showUploadToast('Enter a start and end time.', 'error'); return; }
+                if (start === end) { showUploadToast('Start and end times must differ.', 'error'); return; }
+                const repeat = document.getElementById('f_repeat').value;
+                const days = Array.from(document.querySelectorAll('#f_weeklyFields input[name^="day_"]:checked'))
+                    .map(cb => parseInt(cb.name.replace('day_', '')));
+                if (repeat === 'weekly' && days.length === 0) { showUploadToast('Select at least one day.', 'error'); return; }
+                entry = { type: 'recurring', repeat, days, start, end, exclusive: document.getElementById('f_exclusive').checked };
+            } else {
+                const start = document.getElementById('f_onceStart').value;
+                const end = document.getElementById('f_onceEnd').value;
+                if (!start || !end) { showUploadToast('Enter a start and end date/time.', 'error'); return; }
+                if (start >= end) { showUploadToast('End must be after start.', 'error'); return; }
+                entry = { type: 'once', start, end, exclusive: document.getElementById('f_exclusive').checked };
+            }
+
+            if (editingEntryIndex !== null) editingSchedules[editingEntryIndex] = entry;
+            else editingSchedules.push(entry);
+            schedFormWrap.hidden = true;
+            editingEntryIndex = null;
+            renderSchedGrid();
+            renderSchedList();
+        }
+
+        document.getElementById('f_type').addEventListener('change', updateEntryFields);
+        document.getElementById('f_repeat').addEventListener('change', updateEntryFields);
+        document.getElementById('f_cancel').addEventListener('click', () => {
+            schedFormWrap.hidden = true;
+            editingEntryIndex = null;
+        });
+        document.getElementById('f_save').addEventListener('click', saveEntryForm);
+        document.getElementById('schedAdd').addEventListener('click', () => openEntryForm(null));
+
+        window.openSchedule = (id) => {
+            const row = document.querySelector(`#sortableBody tr[data-id="${id}"]`);
+            if (!row) return;
+            editingId = id;
+            editingSchedules = JSON.parse(row.dataset.schedules || '[]');
+            editingEntryIndex = null;
+            schedFormWrap.hidden = true;
+            renderSchedGrid();
+            renderSchedList();
+            scheduleModal.hidden = false;
+        };
+
+        window.closeScheduleModal = () => {
+            scheduleModal.hidden = true;
+        };
+
+        document.getElementById('schedDone').addEventListener('click', () => {
+            const row = document.querySelector(`#sortableBody tr[data-id="${editingId}"]`);
+            if (row) {
+                row.dataset.schedules = JSON.stringify(editingSchedules);
+                const btn = row.querySelector('.btn-schedule');
+                btn.textContent = editingSchedules.length === 0 ? 'None'
+                    : editingSchedules.length === 1 ? entrySummary(editingSchedules[0])
+                    : `${editingSchedules.length} windows`;
+                btn.classList.toggle('scheduled', editingSchedules.length > 0);
+            }
+            scheduleModal.hidden = true;
+        });
+
+        // 4c. Tagging — slide rows store tag *ids* (tag create/rename/delete
+        // lives in Settings → Tags, so ids are stable across renames). The row
+        // modal assigns tags; Player Links just lists the area URLs.
+        let availableTags = <%- JSON.stringify(tags) %>;
+        const tagModal = document.getElementById('tagModal');
+        const tagCheckList = document.getElementById('tagCheckList');
+        let editingTags = []; // tag ids selected for the slide being edited
+        let editingTagSlideId = null;
+
+        function tagButtonsForRow(row) {
+            return row.querySelectorAll('.btn-tags');
+        }
+
+        function tagNameForId(id) {
+            const t = availableTags.find(tag => tag.id === id);
+            return t ? t.name : '';
+        }
+
+        function refreshTagButtons() {
+            document.querySelectorAll('#sortableBody tr').forEach(row => {
+                const ids = JSON.parse(row.dataset.tags || '[]');
+                const names = ids.map(tagNameForId).filter(Boolean);
+                tagButtonsForRow(row).forEach(btn => {
+                    btn.textContent = names.length ? names.join(', ') : 'None';
+                    btn.classList.toggle('tagged', names.length > 0);
+                });
+            });
+        }
+
+        function renderTagChecklist() {
+            tagCheckList.innerHTML = '';
+            if (availableTags.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'sched-empty';
+                empty.textContent = 'No tags yet — create one below or in Settings → Tags.';
+                tagCheckList.appendChild(empty);
+                return;
+            }
+            availableTags.forEach(tag => {
+                const label = document.createElement('label');
+                label.className = 'tag-check';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = editingTags.includes(tag.id);
+                cb.addEventListener('change', () => {
+                    if (cb.checked) editingTags.push(tag.id);
+                    else editingTags = editingTags.filter(id => id !== tag.id);
+                });
+                const span = document.createElement('span');
+                span.textContent = tag.name;
+                label.append(cb, span);
+                tagCheckList.appendChild(label);
+            });
+        }
+
+        async function createTag(name, opts = {}) {
+            try {
+                const res = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const result = await res.json();
+                if (!result.success) {
+                    showUploadToast(result.error || 'Could not create tag.', 'error');
+                    return null;
+                }
+                if (!availableTags.some(t => t.id === result.tag.id)) {
+                    availableTags.push(result.tag);
+                }
+                if (opts.select && !editingTags.includes(result.tag.id)) editingTags.push(result.tag.id);
+                renderTagChecklist();
+                renderPlayerLinks();
+                return result.tag;
+            } catch {
+                showUploadToast('Could not create tag.', 'error');
+                return null;
+            }
+        }
+
+        document.getElementById('tagNewAdd').addEventListener('click', async () => {
+            const input = document.getElementById('tagNewName');
+            const name = input.value.trim();
+            if (!name) return showUploadToast('Enter a tag name.', 'error');
+            await createTag(name, { select: true });
+            input.value = '';
+        });
+
+        function playerLinkFor(name) {
+            return name ? `${location.origin}/play?tags=${encodeURIComponent(name)}` : `${location.origin}/play`;
+        }
+
+        async function copyText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showUploadToast('Link copied to clipboard.', 'success');
+            } catch {
+                const tmp = document.createElement('textarea');
+                tmp.value = text;
+                document.body.appendChild(tmp);
+                tmp.select();
+                document.execCommand('copy');
+                tmp.remove();
+                showUploadToast('Link copied to clipboard.', 'success');
+            }
+        }
+
+        function renderPlayerLinks() {
+            const list = document.getElementById('playerLinksList');
+            list.innerHTML = '';
+            const rowFor = (label, url) => {
+                const row = document.createElement('div');
+                row.className = 'player-link-row';
+                const info = document.createElement('div');
+                info.className = 'player-link-info';
+                const name = document.createElement('span');
+                name.className = 'player-link-name';
+                name.textContent = label;
+                const href = document.createElement('span');
+                href.className = 'player-link-url';
+                href.textContent = url;
+                info.append(name, href);
+                const open = document.createElement('a');
+                open.className = 'btn secondary btn-small';
+                open.href = url;
+                open.target = '_blank';
+                open.textContent = 'Open';
+                const copy = document.createElement('button');
+                copy.className = 'btn secondary btn-small';
+                copy.textContent = 'Copy link';
+                copy.addEventListener('click', () => copyText(url));
+                row.append(info, open, copy);
+                list.appendChild(row);
+            };
+            rowFor('All slides (general)', playerLinkFor(null));
+            availableTags.forEach(tag => rowFor(tag.name, playerLinkFor(tag.name)));
+        }
+
+        window.openTags = (id) => {
+            const row = document.querySelector(`#sortableBody tr[data-id="${id}"]`);
+            if (!row) return;
+            editingTagSlideId = id;
+            editingTags = JSON.parse(row.dataset.tags || '[]');
+            renderTagChecklist();
+            tagModal.hidden = false;
+        };
+
+        window.closeTagModal = () => {
+            tagModal.hidden = true;
+            editingTagSlideId = null;
+        };
+
+        document.getElementById('tagDone').addEventListener('click', () => {
+            if (editingTagSlideId !== null) {
+                const row = document.querySelector(`#sortableBody tr[data-id="${editingTagSlideId}"]`);
+                if (row) {
+                    row.dataset.tags = JSON.stringify(editingTags);
+                    refreshTagButtons();
+                }
+                editingTagSlideId = null;
+            }
+            tagModal.hidden = true;
+        });
+
+        renderPlayerLinks();
+
+        // 4d. Header "Launch Player" group dropdown
+        const launchBtn = document.getElementById('launchBtn');
+        const launchMenu = document.getElementById('launchMenu');
+        launchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            launchMenu.hidden = !launchMenu.hidden;
+            launchBtn.setAttribute('aria-expanded', String(!launchMenu.hidden));
+        });
+        document.addEventListener('click', () => { launchMenu.hidden = true; });
 
         // 5. Upload Logic
         const uploadZone = document.getElementById('uploadZone');

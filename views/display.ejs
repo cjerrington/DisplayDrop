@@ -8,10 +8,29 @@
 <body>
     <div id="stage"></div>
 
+    <div id="playerBar" class="player-bar" aria-hidden="true">
+        <span class="player-badge">Area: <b id="playerAreaLabel">All slides</b></span>
+        <label class="player-picker">
+            <span>Show:</span>
+            <select id="playerAreaSelect">
+                <option value="">All slides</option>
+                <% tags.forEach(t => { %>
+                <option value="<%= t.name %>"><%= t.name %></option>
+                <% }) %>
+            </select>
+        </label>
+    </div>
+
     <script>
         let slides = [];
         let currentIndex = 0;
+        let pendingTimeout = null;
         const stage = document.getElementById('stage');
+        const activeTags = (new URLSearchParams(location.search).get('tags') || '')
+            .split(',').map(s => s.trim()).filter(Boolean);
+        const API_URL = '/api/slides' + (activeTags.length
+            ? '?tags=' + activeTags.map(encodeURIComponent).join(',')
+            : '');
 
         // Toggle Fullscreen Function
         function toggleFullScreen() {
@@ -46,7 +65,7 @@
         });
 
         async function init() {
-            const res = await fetch('/api/slides');
+            const res = await fetch(API_URL);
             slides = await res.json();
 
             if (slides.length === 0) {
@@ -103,7 +122,12 @@
         }
 
         function playNext() {
-            const slideElements = document.querySelectorAll('.slide');
+            if (pendingTimeout) {
+                clearTimeout(pendingTimeout);
+                pendingTimeout = null;
+            }
+
+            if (slides.length === 0) return;
 
             // 1. Find the current slide and prepare to phase it out
             const oldSlide = document.querySelector('.slide.active');
@@ -131,7 +155,7 @@
             const currentSlideData = slides[currentIndex];
             const ms = (currentSlideData.duration || 5) * 1000;
 
-            setTimeout(() => {
+            pendingTimeout = setTimeout(() => {
                 currentIndex = (currentIndex + 1) % slides.length;
                 playNext();
             }, ms);
@@ -140,7 +164,7 @@
         // Check for updates every 5 seconds (Smoothly syncs changes without interruption)
         setInterval(async () => {
             try {
-                const res = await fetch('/api/slides');
+                const res = await fetch(API_URL);
                 const newSlides = await res.json();
 
                 const hasChanged = JSON.stringify(newSlides) !== JSON.stringify(slides);
@@ -148,27 +172,73 @@
                 if (hasChanged) {
                     console.log("DisplayDrop: Update detected. Syncing new configuration...");
 
-                    // Adjust currentIndex if slides were reordered or removed
-                    const currentSlideData = slides[currentIndex];
+                    const prevSlideData = slides[currentIndex];
+                    const wasShowing = prevSlideData && prevSlideData.filename;
+
                     slides = newSlides;
 
-                    // Try to find the same slide in the new list to maintain continuity
-                    if (currentSlideData) {
-                        const newIndex = newSlides.findIndex(s => s.filename === currentSlideData.filename);
-                        if (newIndex >= 0) {
-                            currentIndex = newIndex;
-                        } else {
-                            // Current slide was removed, stay at current position or wrap
-                            currentIndex = Math.min(currentIndex, newSlides.length - 1);
+                    if (slides.length === 0) {
+                        // Nothing to show anymore: stop the player cleanly
+                        if (pendingTimeout) {
+                            clearTimeout(pendingTimeout);
+                            pendingTimeout = null;
                         }
+                        const active = document.querySelector('.slide.active');
+                        if (active) active.classList.remove('active');
+                        return;
+                    }
+
+                    // Try to find the same slide in the new list to maintain continuity
+                    const newIndex = wasShowing ? newSlides.findIndex(s => s.filename === wasShowing) : -1;
+
+                    if (newIndex >= 0) {
+                        currentIndex = newIndex;
+                    } else {
+                        // Current slide was removed: move on immediately instead of overstaying its window
+                        currentIndex = Math.min(currentIndex, newSlides.length - 1);
+                        renderSlides();
+                        playNext();
+                        return;
                     }
 
                     renderSlides(); // Smoothly update slides in the background without clearing the stage
+
+                    // Re-time the current slide if its duration changed, so schedule changes apply right away
+                    const fresh = slides[currentIndex];
+                    if (fresh && prevSlideData && prevSlideData.duration !== fresh.duration) {
+                        if (pendingTimeout) clearTimeout(pendingTimeout);
+                        pendingTimeout = setTimeout(() => {
+                            currentIndex = (currentIndex + 1) % slides.length;
+                            playNext();
+                        }, (fresh.duration || 5) * 1000);
+                    }
                 }
             } catch (e) {
                 console.error("Connection lost to DisplayDrop server.");
             }
-        }, 60000);
+        }, 5000);
+
+        // Area picker: hovering reveals a small bar to switch tag groups.
+        const playerBar = document.getElementById('playerBar');
+        const areaSelect = document.getElementById('playerAreaSelect');
+        document.getElementById('playerAreaLabel').textContent = activeTags.length ? activeTags.join(', ') : 'All slides';
+        areaSelect.value = activeTags.length === 1 ? activeTags[0] : '';
+
+        let hideCursorTimer = null;
+        document.addEventListener('mousemove', () => {
+            stage.classList.remove('hide-cursor');
+            playerBar.classList.add('show');
+            clearTimeout(hideCursorTimer);
+            hideCursorTimer = setTimeout(() => {
+                stage.classList.add('hide-cursor');
+                playerBar.classList.remove('show');
+            }, 3000);
+        });
+
+        areaSelect.addEventListener('change', (e) => {
+            const v = e.target.value;
+            location.href = v ? `/play?tags=${encodeURIComponent(v)}` : '/play';
+        });
 
         init();
     </script>

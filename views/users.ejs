@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - DisplayDrop</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <header>
+        <h1>User Management</h1>
+        <div class="actions">
+            <a href="/" class="btn secondary">Back to Dashboard</a>
+            <form action="/logout" method="POST" class="inline-form">
+                <button type="submit" class="btn secondary">Logout</button>
+            </form>
+        </div>
+    </header>
+
+    <main>
+        <% if (error) { %><p class="error-text"><%= error %></p><% } %>
+        <% if (message) { %><p class="success-text"><%= message %></p><% } %>
+
+        <section class="card">
+            <h2>Add User</h2>
+            <form action="/users" method="POST" class="user-form">
+                <label>
+                    Username
+                    <input type="text" name="username" required autocomplete="off">
+                </label>
+                <label>
+                    Password
+                    <input type="password" name="password" required minlength="8" autocomplete="new-password">
+                </label>
+                <label>
+                    Role
+                    <select name="role">
+                        <option value="contributor">Contributor</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </label>
+                <button type="submit" class="btn primary">Create User</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>Users</h2>
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th style="width: 160px;">Role</th>
+                        <th style="width: 200px;">Created</th>
+                        <th style="width: 80px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% users.forEach((u) => { %>
+                    <tr>
+                        <td>
+                            <%= u.username %>
+                            <% if (user.id === u.id) { %><span class="badge">you</span><% } %>
+                        </td>
+                        <td>
+                            <form action="/users/<%= u.id %>/role" method="POST" class="inline-form">
+                                <select name="role" onchange="this.form.submit()" <% if (user.id === u.id) { %>disabled<% } %>>
+                                    <option value="contributor" <%= u.role === 'contributor' ? 'selected' : '' %>>Contributor</option>
+                                    <option value="admin" <%= u.role === 'admin' ? 'selected' : '' %>>Admin</option>
+                                </select>
+                            </form>
+                        </td>
+                        <td><%= u.created_at %></td>
+                        <td>
+                            <% if (user.id !== u.id) { %>
+                            <div class="action-cell">
+                                <a href="/users/<%= u.id %>/reset" class="btn secondary btn-small" title="Generate password reset link">Reset</a>
+                                <form action="/users/<%= u.id %>/delete" method="POST"
+                                      onsubmit="return confirm('Permanently delete user <%= u.username %>?')">
+                                    <button type="submit" class="btn-delete" title="Delete user">&#x1F5D1;</button>
+                                </form>
+                            </div>
+                            <% } %>
+                        </td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

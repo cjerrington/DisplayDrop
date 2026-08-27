@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - DisplayDrop</title>
+    <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+    <form class="login-card" action="/login" method="POST">
+        <h1>DisplayDrop</h1>
+        <p class="subtitle">Sign in to manage your displays</p>
+
+        <% if (error) { %>
+            <p class="error-text"><%= error %></p>
+        <% } %>
+
+        <% if (reset) { %>
+            <p class="success-text">Password updated. Please sign in with your new password.</p>
+        <% } %>
+
+        <label>
+            Username
+            <input type="text" name="username" required autocomplete="username" autofocus>
+        </label>
+
+        <label>
+            Password
+            <input type="password" name="password" required autocomplete="current-password">
+        </label>
+
+        <button type="submit" class="btn primary btn-block">Sign In</button>
+    </form>
+</body>
+</html>

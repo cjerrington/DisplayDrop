@@ -90,7 +90,63 @@ body, html {
     opacity: 1; /* Keep visible while sliding out */
 }
 
-/* Transition: Cut (instant switch, no animation) */
+/* Area picker bar: fades in on hover, hides with the cursor */
+.player-bar {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(1rem);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.875rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 20;
+}
+
+.player-bar.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
+.player-badge {
+    color: #94a3b8;
+}
+
+.player-badge b {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.player-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #94a3b8;
+}
+
+.player-picker select {
+    background: rgba(255, 255, 255, 0.12);
+    color: #f1f5f9;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.player-picker select option {
+    color: #1e293b;
+}
+
 .slide.cut {
     transition: none; /* Override default transition */
 }

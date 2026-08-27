@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - DisplayDrop</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <header>
+        <h1>Settings</h1>
+        <div class="actions">
+            <a href="/" class="btn secondary">Back to Dashboard</a>
+            <form action="/logout" method="POST" class="inline-form">
+                <button type="submit" class="btn secondary">Logout</button>
+            </form>
+        </div>
+    </header>
+
+    <main class="settings-layout">
+        <aside class="card settings-nav">
+            <h2>Settings</h2>
+            <nav>
+                <a href="/settings/account" class="<%= section === 'account' ? 'active' : '' %>">Account &amp; Password</a>
+                <% if (user.role === 'admin') { %><a href="/settings/users" class="<%= section === 'users' ? 'active' : '' %>">User Management</a><% } %>
+                <a href="/settings/tags" class="<%= section === 'tags' ? 'active' : '' %>">Tags</a>
+                <a href="/settings/links" class="<%= section === 'links' ? 'active' : '' %>">Player Links</a>
+            </nav>
+        </aside>
+
+        <div class="settings-sections">
+            <% if (section === 'account') { %>
+            <section class="card">
+                <h2>Account &amp; Password</h2>
+                <% if (pwError) { %><p class="error-text"><%= pwError %></p><% } %>
+                <% if (pwMsg) { %><p class="success-text">Password updated successfully.</p><% } %>
+                <form action="/change-password" method="POST" class="user-form">
+                    <label>
+                        Current Password
+                        <input type="password" name="current_password" required autocomplete="current-password">
+                    </label>
+                    <label>
+                        New Password
+                        <input type="password" name="password" required minlength="8" autocomplete="new-password">
+                    </label>
+                    <label>
+                        Confirm New Password
+                        <input type="password" name="password_confirm" required minlength="8" autocomplete="new-password">
+                    </label>
+                    <button type="submit" class="btn primary">Update Password</button>
+                </form>
+            </section>
+            <% } %>
+
+            <% if (section === 'users' && user.role === 'admin') { %>
+            <section class="card">
+                <h2>User Management</h2>
+                <% if (error) { %><p class="error-text"><%= error %></p><% } %>
+                <% if (message) { %><p class="success-text"><%= message %></p><% } %>
+
+                <form action="/users" method="POST" class="user-form">
+                    <label>
+                        Username
+                        <input type="text" name="username" required autocomplete="off">
+                    </label>
+                    <label>
+                        Password
+                        <input type="password" name="password" required minlength="8" autocomplete="new-password">
+                    </label>
+                    <label>
+                        Role
+                        <select name="role">
+                            <option value="contributor">Contributor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </label>
+                    <button type="submit" class="btn primary">Create User</button>
+                </form>
+
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th style="width: 160px;">Role</th>
+                            <th style="width: 200px;">Created</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% users.forEach((u) => { %>
+                        <tr>
+                            <td>
+                                <%= u.username %>
+                                <% if (user.id === u.id) { %><span class="badge">you</span><% } %>
+                            </td>
+                            <td>
+                                <form action="/users/<%= u.id %>/role" method="POST" class="inline-form">
+                                    <select name="role" onchange="this.form.submit()" <% if (user.id === u.id) { %>disabled<% } %>>
+                                        <option value="contributor" <%= u.role === 'contributor' ? 'selected' : '' %>>Contributor</option>
+                                        <option value="admin" <%= u.role === 'admin' ? 'selected' : '' %>>Admin</option>
+                                    </select>
+                                </form>
+                            </td>
+                            <td><%= u.created_at %></td>
+                            <td>
+                                <% if (user.id !== u.id) { %>
+                                <div class="action-cell">
+                                    <a href="/users/<%= u.id %>/reset" class="btn secondary btn-small" title="Generate password reset link">Reset</a>
+                                    <form action="/users/<%= u.id %>/delete" method="POST"
+                                          onsubmit="return confirm('Permanently delete user <%= u.username %>?')">
+                                        <button type="submit" class="btn-delete" title="Delete user">&#x1F5D1;</button>
+                                    </form>
+                                </div>
+                                <% } %>
+                            </td>
+                        </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </section>
+            <% } %>
+
+            <% if (section === 'tags') { %>
+            <section class="card">
+                <h2>Tags</h2>
+                <p class="upload-hint" style="margin-top: 0;">Tags group slides into display areas. Untagged slides are "general" and play everywhere. Create, rename, or delete tags here — slide tagging happens from the dashboard's Tags button on each slide row.</p>
+                <div class="tag-new-row">
+                    <input type="text" id="tagNewName" placeholder="New tag name" maxlength="50">
+                    <button type="button" class="btn primary btn-small" id="tagNewAdd">Create</button>
+                </div>
+                <div id="tagManagerList" class="tag-manager-list"></div>
+            </section>
+            <% } %>
+            <% if (section === 'links') { %>
+            <section class="card">
+                <h2>Player Links</h2>
+                <p class="upload-hint" style="margin-top: 0;">Each area plays its tag group plus every untagged (general) slide. Give each display one of these links. Tags are managed under <a href="/settings/tags">Settings → Tags</a>.</p>
+                <div class="player-links-list">
+                    <div class="player-link-row">
+                        <div class="player-link-info">
+                            <span class="player-link-name">All slides (general)</span>
+                            <span class="player-link-url">/play</span>
+                        </div>
+                        <a class="btn secondary btn-small" href="/play" target="_blank">Open</a>
+                        <button type="button" class="btn secondary btn-small" data-copy="/play">Copy link</button>
+                    </div>
+                    <% tags.forEach(tag => { %>
+                    <div class="player-link-row">
+                        <div class="player-link-info">
+                            <span class="player-link-name"><%= tag.name %></span>
+                            <span class="player-link-url">/play?tags=<%= encodeURIComponent(tag.name) %></span>
+                        </div>
+                        <a class="btn secondary btn-small" href="/play?tags=<%= encodeURIComponent(tag.name) %>" target="_blank">Open</a>
+                        <button type="button" class="btn secondary btn-small" data-copy="/play?tags=<%= encodeURIComponent(tag.name) %>">Copy link</button>
+                    </div>
+                    <% }) %>
+                </div>
+            </section>
+            <% } %>
+        </div>
+    </main>
+
+    <% if (section === 'tags') { %>
+    <div id="toast" class="toast"></div>
+
+    <script>
+        let availableTags = <%- JSON.stringify(tags) %>;
+        const tagManagerList = document.getElementById('tagManagerList');
+        const toast = document.getElementById('toast');
+
+        function showToast(message, type) {
+            toast.textContent = message;
+            toast.className = 'toast show' + (type ? ` toast-${type}` : '');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function renderTagManager() {
+            tagManagerList.innerHTML = '';
+            if (availableTags.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'sched-empty';
+                empty.textContent = 'No tags yet — create one above.';
+                tagManagerList.appendChild(empty);
+                return;
+            }
+            availableTags.forEach(tag => {
+                const row = document.createElement('div');
+                row.className = 'tag-manager-row';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = tag.name;
+                input.maxLength = 50;
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') input.blur();
+                    if (e.key === 'Escape') input.value = tag.name;
+                });
+                input.addEventListener('blur', () => saveRename(tag, input));
+                const count = document.createElement('span');
+                count.className = 'badge';
+                count.textContent = tag.count + (tag.count === 1 ? ' slide' : ' slides');
+                const del = document.createElement('button');
+                del.className = 'btn-delete';
+                del.title = 'Delete tag';
+                del.textContent = '\u{1F5D1}';
+                del.addEventListener('click', () => deleteTag(tag));
+                row.append(input, count, del);
+                tagManagerList.appendChild(row);
+            });
+        }
+
+        async function refreshTags() {
+            try {
+                const res = await fetch('/api/tags');
+                availableTags = await res.json();
+                renderTagManager();
+            } catch {
+                showToast('Could not load tags.', 'error');
+            }
+        }
+
+        async function createTag(name) {
+            try {
+                const res = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const result = await res.json();
+                if (!result.success) return showToast(result.error || 'Could not create tag.', 'error');
+                await refreshTags();
+                return result.tag;
+            } catch {
+                showToast('Could not create tag.', 'error');
+            }
+        }
+
+        async function saveRename(tag, input) {
+            const name = input.value.trim();
+            if (!name || name === tag.name) {
+                input.value = tag.name;
+                return;
+            }
+            try {
+                const res = await fetch(`/api/tags/${tag.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const result = await res.json();
+                if (!result.success) {
+                    input.value = tag.name;
+                    return showToast(result.error || 'Could not rename tag.', 'error');
+                }
+                tag.name = name;
+                renderTagManager();
+                showToast('Tag renamed.', 'success');
+            } catch {
+                input.value = tag.name;
+                showToast('Could not rename tag.', 'error');
+            }
+        }
+
+        async function deleteTag(tag) {
+            if (!confirm(`Delete the tag "${tag.name}"? It will be removed from every slide.`)) return;
+            try {
+                await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
+                await refreshTags();
+                showToast('Tag deleted.', 'success');
+            } catch {
+                showToast('Could not delete tag.', 'error');
+            }
+        }
+
+        document.getElementById('tagNewAdd').addEventListener('click', async () => {
+            const input = document.getElementById('tagNewName');
+            const name = input.value.trim();
+            if (!name) return showToast('Enter a tag name.', 'error');
+            if (await createTag(name)) {
+                input.value = '';
+                showToast('Tag created.', 'success');
+            }
+        });
+
+        refreshTags();
+    </script>
+    <% } %>
+
+    <% if (section === 'links') { %>
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const toast = document.getElementById('toast');
+
+        function showToast(message, type) {
+            toast.textContent = message;
+            toast.className = 'toast show' + (type ? ` toast-${type}` : '');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        async function copyText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Link copied to clipboard.', 'success');
+            } catch {
+                const tmp = document.createElement('textarea');
+                tmp.value = text;
+                document.body.appendChild(tmp);
+                tmp.select();
+                document.execCommand('copy');
+                tmp.remove();
+                showToast('Link copied to clipboard.', 'success');
+            }
+        }
+
+        document.querySelectorAll('[data-copy]').forEach(btn => {
+            btn.addEventListener('click', () => copyText(location.origin + btn.dataset.copy));
+        });
+    </script>
+    <% } %>
+</body>
+</html>

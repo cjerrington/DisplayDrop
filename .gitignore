@@ -26,3 +26,8 @@ npm-debug.log*
 
 # Optional: Uncomment to exclude uploaded slides from tracking
 public/slides/
+
+# Standalone build output
+build/
+
+.opencode/

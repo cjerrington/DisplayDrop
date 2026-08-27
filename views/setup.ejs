@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Up DisplayDrop</title>
+    <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+    <form class="login-card" action="/setup" method="POST">
+        <h1>DisplayDrop</h1>
+        <p class="subtitle">Welcome! Create the initial admin account</p>
+
+        <% if (error) { %>
+            <p class="error-text"><%= error %></p>
+        <% } %>
+
+        <label>
+            Username
+            <input type="text" name="username" required autocomplete="username" autofocus>
+        </label>
+
+        <label>
+            Password
+            <input type="password" name="password" required minlength="8" autocomplete="new-password">
+        </label>
+
+        <label>
+            Confirm Password
+            <input type="password" name="password_confirm" required minlength="8" autocomplete="new-password">
+        </label>
+
+        <button type="submit" class="btn primary btn-block">Create Admin Account</button>
+    </form>
+</body>
+</html>

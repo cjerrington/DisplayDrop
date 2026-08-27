@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password for <%= target.username %> - DisplayDrop</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <header>
+        <h1>Reset Password</h1>
+        <div class="actions">
+            <a href="/users" class="btn secondary">Back to Users</a>
+            <a href="/" class="btn secondary">Dashboard</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Password reset for <%= target.username %></h2>
+
+            <% if (link) { %>
+                <p class="success-text">
+                    Reset link generated. Share this one-time link with <strong><%= target.username %></strong>.
+                    It expires in one hour and becomes invalid after a single use.
+                </p>
+                <div class="reset-link-box">
+                    <input type="text" id="resetLink" value="<%= link %>" readonly>
+                    <button type="button" class="btn primary" onclick="copyLink()">Copy Link</button>
+                </div>
+                <p class="error-text" style="margin-top: 1rem;">
+                    Treat this like a password — anyone with the link can reset the account.
+                </p>
+            <% } else { %>
+                <p>Generate a one-time reset link for <strong><%= target.username %></strong>.</p>
+                <form action="/users/<%= target.id %>/reset" method="POST">
+                    <button type="submit" class="btn primary">Generate Reset Link</button>
+                </form>
+            <% } %>
+        </section>
+    </main>
+
+    <script>
+        function copyLink() {
+            const input = document.getElementById('resetLink');
+            input.select();
+            navigator.clipboard.writeText(input.value).then(() => {
+                const btn = input.nextElementSibling;
+                btn.textContent = 'Copied!';
+                setTimeout(() => (btn.textContent = 'Copy Link'), 2000);
+            });
+        }
+    </script>
+</body>
+</html>
